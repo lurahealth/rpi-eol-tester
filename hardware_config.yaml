@@ -1,0 +1,31 @@
+# Common hardware configuration shared by all tests
+# Pin definitions and serial port configuration
+
+# Power Path selection pins
+power_pins:
+  pin_vdut_sel: GPIO17
+  pin_vdut_src_sel0: GPIO27
+  pin_i_iten_meas_en: GPIO23
+  pin_vdut_src_sel1: GPIO22
+  pin_idut_meas_en: GPIO5
+  pin_js_imeas_sel0: GPIO6
+  pin_iten_ch_dchg_sel0: GPIO20
+  pin_js_imeas_sel1: GPIO26
+  pin_iten_ch_dchg_sel1: GPIO21
+
+# Additional GPIO pins
+pin_i2c_en_uart_en_l: GPIO18
+pin_ids_meas_en: GPIO24
+pin_mosfet_en: GPIO25
+pin_vdut_en: GPIO1
+pin_led0_pwm: GPIO12
+pin_iten_chg_dchg_en: GPIO16
+pin_js_mux_en: GPIO0
+pin_led1_pwm: GPIO13
+pin_dut_reset: GPIO19
+
+power_startup_delay: 1.0
+
+# UART configuration
+uart_port: /dev/ttyAMA0
+uart_baudrate: 115200

@@ -1,0 +1,42 @@
+# EOL Test Configuration
+# Hardware pins are loaded from hardware_config.yaml
+
+# Whether or not to use the TofuPilot operator UI and result collection interface
+use_tofupilot: False
+
+# Set procedure ID and part_number to match what's in TofuPilot (create a procedure ahead of time)
+procedure_id: e7ba6f6c-8ec9-11f0-aec1-f39e79a20a3c
+part_number: LURA_M2
+
+# EOL Test thresholds
+thresholds:
+  # Smoke test thresholds
+  vbat_voltage_min: 2.60
+  vbat_voltage_max: 2.66
+  vbat_current_max: 10.0e-6  # 10uA
+  
+  vsys_voltage_min: 2.60
+  vsys_voltage_max: 2.66
+  vsys_current_max: 5.0e-3   # 5mA
+  
+  # UART test thresholds
+  uart_uptime_max: 3.0       # seconds
+  
+  # Magnetic latch test thresholds
+  mag_latch_current_max: 10.0e-6  # 10uA
+  
+  # ISFET test thresholds
+  isfet_vout_min: 0.0
+  isfet_vout_max: 2.63
+  isfet_id_current_min: 95.0e-6   # 95uA (100uA - 5%)
+  isfet_id_current_max: 105.0e-6  # 105uA (100uA + 5%)
+  isfet_vds_voltage_min: 0.57     # 570mV (600mV - 5%)
+  isfet_vds_voltage_max: 0.63     # 630mV (600mV + 5%)
+  
+  # BLE test thresholds
+  ble_vd_min: 0.6175         # 617.5mV (650mV - 5%)
+  ble_vd_max: 0.6825         # 682.5mV (650mV + 5%)
+  ble_vs_min: 0.0475         # 47.5mV (50mV - 5%)
+  ble_vs_max: 0.0525         # 52.5mV (50mV + 5%)
+  ble_vbat_min: 2.60         # 2.60V (2.63V - 1%)
+  ble_vbat_max: 2.66         # 2.66V (2.63V + 1%)

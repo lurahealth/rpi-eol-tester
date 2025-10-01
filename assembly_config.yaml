@@ -1,0 +1,22 @@
+# Assembly Test Configuration
+# Hardware pins are loaded from hardware_config.yaml
+
+use_tofupilot: True
+
+# Assembly procedure ID (distinct from main EOL test)
+procedure_id: <REPLACE_WITH_ASSEMBLY_PROCEDURE_ID>
+part_number: LURA_M2_SUBASSEMBLY
+
+# Assembly test thresholds
+thresholds:
+  # TMP118 temperature sensor
+  tmp118_temp_min: 15.0
+  tmp118_temp_max: 35.0
+  tmp118_device_id: 0x1180
+  
+  # ISFET ADC values
+  isfet_adc_air_min: 1.0
+  isfet_adc_air_max: 1.5
+  isfet_adc_water_min: 1.2
+  isfet_adc_water_max: 1.8
+  isfet_min_delta: 0.05  # Minimum voltage difference between air and water

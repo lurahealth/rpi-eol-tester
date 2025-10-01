@@ -1,0 +1,26 @@
+[project]
+name = "lura-teststand"
+version = "0.1.0"
+description = "End-of-line test stand for Lura's M2 Sensor Board"
+dependencies = [
+    "bleak>=0.21.0",
+    "gpiozero>=2.0.1",
+    "joulescope>=1.3.1",
+    "lgpio>=0.2.2.0",
+    "openhtf>=1.6.1",
+    "pyjls>=0.15.0",
+    "pyserial>=3.5",
+    "tofupilot>=1.12.1",
+]
+requires-python = ">=3.11"
+
+[project.scripts]
+teststand = "teststand.main:main"
+assembly = "teststand.assembly:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["teststand"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

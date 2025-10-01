@@ -1,0 +1,5 @@
+erase
+loadfile /home/lura/lura-teststand/firmware-artifacts/firmware.s37
+r
+g
+qc
