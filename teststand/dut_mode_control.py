@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from enum import Enum
 import time
 from gpiozero import OutputDevice
@@ -20,30 +21,41 @@ class DutModeControl(htf.plugs.BasePlug):
     ):
         super().__init__()
         self._mode_mux_pin = OutputDevice(pin_i2c_en_uart_en_l)
-        self._dut_reset_pin = OutputDevice(pin_dut_reset)
+        self._dut_reset_pin = OutputDevice(pin_dut_reset, initial_value=True)
 
         self._serial_port = serial_port
         self._baud = baud
 
         self._current_mode: Optional[DutMode] = None
 
-    def reset_dut(self, mode: DutMode):
+    @contextmanager
+    def hold_dut_mode_for_reset(self, mode: DutMode):
+        """Hold the DUT mode pin so that when reset the DUT will come up in the proper mode. Yields to allow the caller to perform the actual reset"""
+
         # Use a UART break condition to force the line low if required. This avoids having to re-configure the pin as a GPIO.
         ser = serial.Serial("/dev/ttyAMA0", 115200, timeout=2)
         if mode == DutMode.UART:
             ser.break_condition = True
 
-        # Reset the device
-        self._dut_reset_pin.on()
-        # TODO: reduce this timeout and remove the print
-        print("Please press reset button")
-        time.sleep(5.0)
-        self._dut_reset_pin.off()
+        # Allow the caller to reset the DUT
+        yield
+
+        time.sleep(0.1)
 
         ser.break_condition = False
         ser.close()
 
         self._current_mode = mode
+
+
+    def reset_dut(self, mode: DutMode):
+        """Reset the device under test in the given mode"""
+        with self.hold_dut_mode_for_reset(mode):
+            # Reset the device
+            self._dut_reset_pin.off()
+            time.sleep(0.05)
+            self._dut_reset_pin.on()
+            time.sleep(0.25)
 
     @property
     def current_mode(self):

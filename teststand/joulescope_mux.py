@@ -20,6 +20,13 @@ class JoulescopeMeasurementConfig:
     measure_voltage: bool = True
 
 
+@dataclass(frozen=True)
+class JoulescopeMeasurement:
+    voltage_v: float
+    current_a: float
+    power_w: float
+
+
 class JoulescopeMux:
     def __init__(self, pin_config: dict[str, int]):
         self.js_imeas_sel0 = OutputDevice(pin_config["pin_js_imeas_sel0"])
@@ -66,7 +73,7 @@ class JoulescopeMux:
             if config.measure_current:
                 raise ValueError("Current measurement not available for ISFET_OUT mode")
 
-    def measure(self, duration: float = 0.1) -> dict[str, float]:
+    def measure(self, duration: float = 0.1) -> JoulescopeMeasurement:
         if self.joulescope is None:
             raise RuntimeError("Joulescope not connected. Call apply_config() first.")
 
@@ -77,8 +84,8 @@ class JoulescopeMux:
         voltage = np.average(data["signals"]["voltage"]["value"])
         power = np.average(data["signals"]["power"]["value"])
 
-        return {
-            "current_a": current,
-            "voltage_v": voltage,
-            "power_w": power,
-        }
+        return JoulescopeMeasurement(
+            current_a=current,
+            voltage_v=voltage,
+            power_w=power,
+        )

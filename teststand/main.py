@@ -3,7 +3,7 @@ OpenHTF test station for the Lura Health M2 sensor board
 """
 
 import shlex
-from typing import Optional
+from typing import Dict, List, Optional
 import openhtf as htf
 from openhtf.plugs import user_input
 from openhtf.output.callbacks import json_factory, console_summary
@@ -19,7 +19,8 @@ import serial
 import struct
 import asyncio
 from gpiozero import OutputDevice, InputDevice
-from bleak import BleakScanner, BleakClient
+from bleak import BleakScanner, BleakClient, exc as bleak_exc
+from bleak.backends.characteristic import BleakGATTCharacteristic
 from .power_path import (
     DUT_OFF_POWER_PATH,
     ITEN_DEFAULT,
@@ -67,6 +68,9 @@ pin_iten_chg_dchg_en = CONF.declare("pin_iten_chg_dchg_en")
 pin_js_mux_en = CONF.declare("pin_js_mux_en")
 pin_led1_pwm = CONF.declare("pin_led1_pwm")
 thresholds = CONF.declare("thresholds")
+ble_sensor_data_service_uuid = CONF.declare("ble_sensor_data_service_uuid")
+sense_enable_characteristic_uuid = CONF.declare("sense_enable_characteristic_uuid")
+ble_measurements = CONF.declare("ble_measurements")
 
 # Load configuration from YAML files
 with open(HARDWARE_CONFIG_FILE, "r") as yamlfile:
@@ -81,8 +85,8 @@ ModeControl = bind_init_args(
 
 
 # Measurement functions
-def measure_voltage_current(duration=0.1):
-    """Measure voltage and current on a power rail using Joulescope"""
+def measure_dut(duration=0.1):
+    """Measure voltage and current of the """
     global joulescope_mux
     assert joulescope_mux is not None
 
@@ -90,10 +94,7 @@ def measure_voltage_current(duration=0.1):
     joulescope_mux.apply_config(
         JoulescopeMeasurementConfig(JoulescopeMuxSelect.DEVICE_UNDER_TEST)
     )
-
-    measurement = joulescope_mux.measure(duration=duration)
-    return {"voltage": measurement["voltage_v"], "current": measurement["current_a"]}
-
+    return joulescope_mux.measure(duration=duration)
 
 def establish_uart_connection(port, baudrate=115200, timeout=5):
     """Establish UART connection and check uptime"""
@@ -106,6 +107,7 @@ def establish_uart_connection(port, baudrate=115200, timeout=5):
     if not response.strip():
         raise RuntimeError("No response from DUT")
 
+    response = response.replace("uptime", "").replace("lura>", "")
     uptime = float(response.strip())
     return {"connected": True, "uptime": uptime}
 
@@ -132,10 +134,10 @@ def read_isfet_vout(duration=0.1):
     )
 
     measurement = joulescope_mux.measure(duration=duration)
-    return measurement["voltage_v"]
+    return measurement.voltage_v
 
 
-def establish_ble_connection():
+def establish_ble_connection(measurements: list[tuple[str, str]]):
     """Establish BLE connection and read characteristics"""
 
     async def scan_and_connect():
@@ -143,8 +145,9 @@ def establish_ble_connection():
         lura_device = None
         for d in devices:
             if d.name and "lura" in d.name.lower():
+                if lura_device is not None:
+                    raise RuntimeError(f"Multiple Lura devices found: {d.address} and {lura_device.address}")
                 lura_device = d
-                break
 
         if not lura_device:
             raise RuntimeError("Lura device not found")
@@ -152,29 +155,37 @@ def establish_ble_connection():
         async with BleakClient(lura_device.address) as client:
             logger.info(f"Connected to {lura_device.name}")
 
-            sensor_data = {}
-            for service in client.services:
-                for char in service.characteristics:
-                    if "sensor" in char.description.lower():
-                        data = await client.read_gatt_char(char.uuid)
-                        sensor_data = parse_sensor_data(data)
-                        break
+            # Start sensing
+            await client.write_gatt_char(CONF.sense_enable_characteristic_uuid, bytearray([1]))
 
-            if not sensor_data:
-                raise RuntimeError("No sensor data characteristic found")
+            sensor_data:Dict[tuple[str, str], Optional[bytearray]] = {meas: None for meas in measurements}
+
+            def on_data(characteristic: BleakGATTCharacteristic, data: bytearray):
+                logger.info(f"Got BLE data on {characteristic.uuid}: {data}")
+                this_key:Optional[tuple[str, str]] = None
+                for key in sensor_data.keys():
+                    if key[0] == characteristic.uuid:
+                        this_key = key
+                if this_key is not None:
+                    sensor_data[this_key] = data
+
+            for uuid, _ in measurements:
+                await client.start_notify(uuid, on_data)
+
+            # Wait until all data is populated or timeout
+            start_time = time.time()
+            while time.time() < start_time + 8.0:
+                if all([data is not None for data in sensor_data.values()]):
+                    break
+                await asyncio.sleep(0.1)
+
+            # Stop sensing
+            await client.write_gatt_char(CONF.sense_enable_characteristic_uuid, bytearray([0]))
 
             return sensor_data
 
     result = asyncio.run(scan_and_connect())
-    return {"connected": True, **result}
-
-
-def parse_sensor_data(data):
-    """Parse BLE sensor data characteristic"""
-    if len(data) >= 20:
-        vd, vs, vout, vbat, vtemp = struct.unpack("<fffff", data[:20])
-        return {"vd": vd, "vs": vs, "vout": vout, "vbat": vbat, "vtemp": vtemp}
-    return {"vd": 0.0, "vs": 0.0, "vout": 0.0, "vbat": 0.0, "vtemp": 0.0}
+    return (True, result)
 
 
 def export_power_plot():
@@ -229,12 +240,12 @@ def smoke_test_vbat(test):
     time.sleep(0.5)
 
     # Measure VBAT voltage and current
-    measurement = measure_voltage_current(0.1)
-    test.measurements.vbat_voltage = measurement["voltage"]
-    test.measurements.vbat_current = measurement["current"]
+    measurement = measure_dut(0.1)
+    test.measurements.vbat_voltage = measurement.voltage_v
+    test.measurements.vbat_current = measurement.current_a
 
     logger.info(
-        f"VBAT: {measurement['voltage']:.3f}V, {measurement['current'] * 1e6:.1f}uA"
+        f"VBAT: {measurement.voltage_v:.3f}V, {measurement.current_a * 1e6:.1f}uA"
     )
 
 
@@ -266,12 +277,12 @@ def smoke_test_vsys(test):
     time.sleep(0.5)
 
     # Measure VSYS voltage and current
-    measurement = measure_voltage_current(0.1)
-    test.measurements.vsys_voltage = measurement["voltage"]
-    test.measurements.vsys_current = measurement["current"]
+    measurement = measure_dut(0.1)
+    test.measurements.vsys_voltage = measurement.voltage_v
+    test.measurements.vsys_current = measurement.current_a
 
     logger.info(
-        f"VSYS: {measurement['voltage']:.3f}V, {measurement['current'] * 1e3:.1f}mA"
+        f"VSYS: {measurement.voltage_v:.3f}V, {measurement.current_a * 1e3:.1f}mA"
     )
 
 
@@ -376,15 +387,13 @@ def connection_setup_phase(test, user_input):
 
 
 @htf.measures(
-    htf.Measurement("led_on_confirmed").equals("y"),
-    # TODO: export power plot
-    # htf.Measurement("power_plot_exported").equals(True),
+    htf.Measurement("led_functional").equals("y"),
 )
 @htf.plug(user_input=UserInput)
 @htf.plug(dut_mode=ModeControl)
-def flash_program_test(test, user_input: UserInput, dut_mode: DutModeControl):
-    """Flash Program test sequence"""
-    logger.info("==== Flash Program Test ====")
+def led_test(test, user_input: UserInput, dut_mode: DutModeControl):
+    """LED Functional"""
+    logger.info("==== LED Test ====")
 
     # Ensure VSYS is powered
     global power_path
@@ -400,12 +409,11 @@ def flash_program_test(test, user_input: UserInput, dut_mode: DutModeControl):
         )
     )
 
-    # Turn on LED and confirm
     response = user_input.prompt(
         "LED should now be on. Is the LED lit? (y/n)",
         text_input=True,
     )
-    test.measurements.led_on_confirmed = response
+    test.measurements.led_functional = response
 
     # Reset the DUT into UART mode for the remainder of the tests
     dut_mode.reset_dut(DutMode.UART)
@@ -463,53 +471,53 @@ def vdd_temp_i2c_test(test, dut_mode: DutModeControl):
     htf.Measurement("uart_reset_uptime").in_range(
         -float("inf"), CONF.thresholds["uart_uptime_max"]
     ),
+    htf.Measurement("uptime_less_after_reset").equals(True)
 )
 @htf.plug(dut_mode=ModeControl)
 def uart_reset_test(test, dut_mode: DutModeControl):
     """Initial UART test and Reset test (with UART enabled, firmware hi-z VDD_TEMP)"""
     logger.info("==== UART and Reset Test ====")
 
-    # Ensure UART mode and power cycle
-    dut_mode.reset_dut(DutMode.UART)
     global power_path
     assert power_path is not None
 
-    # Power cycle: turn off first
-    power_path.apply_config(
-        PowerPathConfig(
-            VdutSelect.NONE,
-            DevicePowerSupply.VDUT_VSYS,
-            ITEN_DEFAULT,
-            joulescope_current_meas=False,
-            iten_current_meas=False,
+    with dut_mode.hold_dut_mode_for_reset(DutMode.UART):
+        # Power cycle: turn off first
+        power_path.apply_config(
+            PowerPathConfig(
+                VdutSelect.NONE,
+                DevicePowerSupply.VDUT_VSYS,
+                ITEN_DEFAULT,
+                joulescope_current_meas=False,
+                iten_current_meas=False,
+            )
         )
-    )
-    time.sleep(0.5)
+        time.sleep(0.5)
 
-    # Power on with UART enabled (firmware will hi-z VDD_TEMP)
-    power_path.apply_config(
-        PowerPathConfig(
-            VdutSelect.RASPBERRY_PI,
-            DevicePowerSupply.VDUT_VSYS,
-            ITEN_DEFAULT,
-            joulescope_current_meas=True,
-            iten_current_meas=False,
+        # Power on with UART enabled (firmware will hi-z VDD_TEMP)
+        power_path.apply_config(
+            PowerPathConfig(
+                VdutSelect.RASPBERRY_PI,
+                DevicePowerSupply.VDUT_VSYS,
+                ITEN_DEFAULT,
+                joulescope_current_meas=True,
+                iten_current_meas=False,
+            )
         )
-    )
-    time.sleep(0.5)
+        time.sleep(0.5)
 
-    # Establish initial UART link, check uptime < 3 seconds
+    # Establish initial UART link, check uptime
     uart_result = establish_uart_connection(CONF.uart_port, CONF.uart_baudrate)
     test.measurements.uart_initial_uptime = uart_result["uptime"]
 
-    reset_dut_via_pi()
+    dut_mode.reset_dut(DutMode.UART)
 
     time.sleep(1)
 
-    # Re-establish UART link after reset, check uptime < 3 seconds
+    # Re-establish UART link after reset pin triggered, check uptime
     uart_result = establish_uart_connection(CONF.uart_port, CONF.uart_baudrate)
     test.measurements.uart_reset_uptime = uart_result["uptime"]
-
+    test.measurements.uptime_less_after_reset = (test.measurements.uart_reset_uptime - test.measurements.uart_initial_uptime) < 0
 
 @htf.measures(
     htf.Measurement("mag_latch_low_power").in_range(
@@ -541,8 +549,8 @@ def mag_latch_test(test, user_input):
     )
 
     # Check low power state
-    measurement = measure_voltage_current(0.1)
-    test.measurements.mag_latch_low_power = measurement["current"]
+    measurement = measure_dut(0.1)
+    test.measurements.mag_latch_low_power = measurement.current_a
 
     # Prompt to apply magnet
     response = user_input.prompt(
@@ -559,8 +567,8 @@ def mag_latch_test(test, user_input):
     time.sleep(0.5)
 
     # Confirm low power again
-    measurement = measure_voltage_current(0.1)
-    test.measurements.mag_latch_final_power = measurement["current"]
+    measurement = measure_dut(0.1)
+    test.measurements.mag_latch_final_power = measurement.current_a
 
 
 @htf.measures(
@@ -593,11 +601,15 @@ def isfet_mosfet_test(test):
     test.measurements.isfet_vout = vout
 
     # Check Id and Vds on Joulescope (FET drain-source measurement)
-    joulescope_measurement = measure_joulescope_power(
-        JoulescopeMuxSelect.FET_DRAIN_SOURCE, duration=0.5
+    assert joulescope_mux is not None
+    joulescope_mux.apply_config(
+        JoulescopeMeasurementConfig(
+            JoulescopeMuxSelect.FET_DRAIN_SOURCE,
+        )
     )
-    test.measurements.isfet_id_current = joulescope_measurement["current_a"]
-    test.measurements.isfet_vds_voltage = joulescope_measurement["voltage_v"]
+    measurement = joulescope_mux.measure(duration=0.5)
+    test.measurements.isfet_id_current = measurement.current_a
+    test.measurements.isfet_vds_voltage = measurement.voltage_v
 
     # Turn off sensing mode via UART command
     try:
@@ -611,15 +623,11 @@ def isfet_mosfet_test(test):
 
 @htf.measures(
     htf.Measurement("ble_connected").equals(True),
-    htf.Measurement("ble_vd").in_range(
-        CONF.thresholds["ble_vd_min"], CONF.thresholds["ble_vd_max"]
-    ),
-    htf.Measurement("ble_vs").in_range(
-        CONF.thresholds["ble_vs_min"], CONF.thresholds["ble_vs_max"]
-    ),
-    htf.Measurement("ble_vbat").in_range(
-        CONF.thresholds["ble_vbat_min"], CONF.thresholds["ble_vbat_max"]
-    ),
+    *[
+        htf.Measurement(f"ble_measurement_{measurement['name']}").in_range(
+            measurement["min"], measurement["max"]
+        ) for measurement in CONF.ble_measurements
+    ],
     htf.Measurement("ble_power_plot_exported").equals(True),
 )
 def ble_packet_test(test):
@@ -627,13 +635,16 @@ def ble_packet_test(test):
     logger.info("==== BLE Packet Test ====")
 
     # Establish BLE connection
-    ble_result = establish_ble_connection()
-    test.measurements.ble_connected = ble_result["connected"]
+    connected, data = establish_ble_connection([(meas["uuid"], meas["name"]) for meas in CONF.ble_measurements])
+    test.measurements.ble_connected = connected
 
     # Read sensor data characteristic
-    test.measurements.ble_vd = ble_result["vd"]
-    test.measurements.ble_vs = ble_result["vs"]
-    test.measurements.ble_vbat = ble_result["vbat"]
+    for (uuid, name), value in data.items():
+        parsed_value = None
+        if value is not None:
+            parsed_value = int.from_bytes(value, byteorder='little')
+        scale = [meas["scale"] for meas in CONF.ble_measurements if meas["uuid"] == uuid][0]
+        test.measurements[f"ble_measurement_{name}"] = parsed_value / scale
 
     # Check power on VSYS and export plot
     # TODO: plot
@@ -641,7 +652,7 @@ def ble_packet_test(test):
     test.measurements.ble_power_plot_exported = True
 
     logger.info(
-        f"BLE Data - Vd: {ble_result['vd']}V, Vs: {ble_result['vs']}V, Vbat: {ble_result['vbat']}V"
+        f"BLE Data: {data}"
     )
 
 
@@ -733,12 +744,12 @@ def main():
 
     # Create test sequence (order matches TEST_SEQUENCE.md)
     test = htf.Test(
-        # connection_setup_phase,
+        connection_setup_phase,
         power_setup_phase,
-        # smoke_test_vbat,
-        # smoke_test_vsys,
-        # flash_firmware_phase,
-        flash_program_test,
+        smoke_test_vbat,
+        smoke_test_vsys,
+        flash_firmware_phase,
+        led_test,
         vdd_temp_i2c_test,
         uart_reset_test,
         mag_latch_test,

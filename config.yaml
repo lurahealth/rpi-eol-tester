@@ -40,3 +40,36 @@ thresholds:
   ble_vs_max: 0.0525         # 52.5mV (50mV + 5%)
   ble_vbat_min: 2.60         # 2.60V (2.63V - 1%)
   ble_vbat_max: 2.66         # 2.66V (2.63V + 1%)
+
+ble_sensor_data_service_uuid: eb916eba-dd6b-4ec7-b25c-62d69992c410
+sense_enable_characteristic_uuid: 270c46d0-0382-4732-a35b-491ed5fb1318
+
+# This measurement array is dynamic, each entry will be validatated against a BLE measurement of that characteristic.
+# The min/max are scaled values. BLE data is read as a 16-bit Little-endian integer, divided by scale and then compared to min/max.
+# In other words: value = raw / scale and the check is: min < value < max
+ble_measurements:
+  - uuid: 611bf18b-0e2b-451d-ad71-ca02419e0d28
+    name: ph
+    min: 0
+    max: 10.0
+    scale: 1.0
+  - uuid: 43d2b9e3-7a5f-4a04-b864-b4687ca505c8
+    name: temperature
+    min: 0
+    max: 100
+    scale: 1.0
+  - uuid: d35c35aa-91a8-4f6d-a8c2-ec2860cb95bf
+    name: battery_voltage
+    min: 0
+    max: 3.3
+    scale: 1.0
+  - uuid: eca1a416-81f6-4978-8a70-57361564e8c9
+    name: charge_current
+    min: 0
+    max: 1.0
+    scale: 1.0
+  - uuid: c9e95fa8-3ebb-41bb-9b30-3fcae1ac3961
+    name: temperature_celsius
+    min: 20
+    max: 40
+    scale: 1.0
