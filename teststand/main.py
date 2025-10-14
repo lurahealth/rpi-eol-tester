@@ -86,7 +86,7 @@ ModeControl = bind_init_args(
 
 # Measurement functions
 def measure_dut(duration=0.1):
-    """Measure voltage and current of the """
+    """Measure voltage and current of the DUT"""
     global joulescope_mux
     assert joulescope_mux is not None
 
@@ -95,6 +95,7 @@ def measure_dut(duration=0.1):
         JoulescopeMeasurementConfig(JoulescopeMuxSelect.DEVICE_UNDER_TEST)
     )
     return joulescope_mux.measure(duration=duration)
+
 
 def establish_uart_connection(port, baudrate=115200, timeout=5):
     """Establish UART connection and check uptime"""
@@ -146,7 +147,9 @@ def establish_ble_connection(measurements: list[tuple[str, str]]):
         for d in devices:
             if d.name and "lura" in d.name.lower():
                 if lura_device is not None:
-                    raise RuntimeError(f"Multiple Lura devices found: {d.address} and {lura_device.address}")
+                    raise RuntimeError(
+                        f"Multiple Lura devices found: {d.address} and {lura_device.address}"
+                    )
                 lura_device = d
 
         if not lura_device:
@@ -156,13 +159,17 @@ def establish_ble_connection(measurements: list[tuple[str, str]]):
             logger.info(f"Connected to {lura_device.name}")
 
             # Start sensing
-            await client.write_gatt_char(CONF.sense_enable_characteristic_uuid, bytearray([1]))
+            await client.write_gatt_char(
+                CONF.sense_enable_characteristic_uuid, bytearray([1])
+            )
 
-            sensor_data:Dict[tuple[str, str], Optional[bytearray]] = {meas: None for meas in measurements}
+            sensor_data: Dict[tuple[str, str], Optional[bytearray]] = {
+                meas: None for meas in measurements
+            }
 
             def on_data(characteristic: BleakGATTCharacteristic, data: bytearray):
                 logger.info(f"Got BLE data on {characteristic.uuid}: {data}")
-                this_key:Optional[tuple[str, str]] = None
+                this_key: Optional[tuple[str, str]] = None
                 for key in sensor_data.keys():
                     if key[0] == characteristic.uuid:
                         this_key = key
@@ -180,7 +187,9 @@ def establish_ble_connection(measurements: list[tuple[str, str]]):
                 await asyncio.sleep(0.1)
 
             # Stop sensing
-            await client.write_gatt_char(CONF.sense_enable_characteristic_uuid, bytearray([0]))
+            await client.write_gatt_char(
+                CONF.sense_enable_characteristic_uuid, bytearray([0])
+            )
 
             return sensor_data
 
@@ -471,7 +480,7 @@ def vdd_temp_i2c_test(test, dut_mode: DutModeControl):
     htf.Measurement("uart_reset_uptime").in_range(
         -float("inf"), CONF.thresholds["uart_uptime_max"]
     ),
-    htf.Measurement("uptime_less_after_reset").equals(True)
+    htf.Measurement("uptime_less_after_reset").equals(True),
 )
 @htf.plug(dut_mode=ModeControl)
 def uart_reset_test(test, dut_mode: DutModeControl):
@@ -517,7 +526,10 @@ def uart_reset_test(test, dut_mode: DutModeControl):
     # Re-establish UART link after reset pin triggered, check uptime
     uart_result = establish_uart_connection(CONF.uart_port, CONF.uart_baudrate)
     test.measurements.uart_reset_uptime = uart_result["uptime"]
-    test.measurements.uptime_less_after_reset = (test.measurements.uart_reset_uptime - test.measurements.uart_initial_uptime) < 0
+    test.measurements.uptime_less_after_reset = (
+        test.measurements.uart_reset_uptime - test.measurements.uart_initial_uptime
+    ) < 0
+
 
 @htf.measures(
     htf.Measurement("mag_latch_low_power").in_range(
@@ -626,7 +638,8 @@ def isfet_mosfet_test(test):
     *[
         htf.Measurement(f"ble_measurement_{measurement['name']}").in_range(
             measurement["min"], measurement["max"]
-        ) for measurement in CONF.ble_measurements
+        )
+        for measurement in CONF.ble_measurements
     ],
     htf.Measurement("ble_power_plot_exported").equals(True),
 )
@@ -635,15 +648,19 @@ def ble_packet_test(test):
     logger.info("==== BLE Packet Test ====")
 
     # Establish BLE connection
-    connected, data = establish_ble_connection([(meas["uuid"], meas["name"]) for meas in CONF.ble_measurements])
+    connected, data = establish_ble_connection(
+        [(meas["uuid"], meas["name"]) for meas in CONF.ble_measurements]
+    )
     test.measurements.ble_connected = connected
 
     # Read sensor data characteristic
     for (uuid, name), value in data.items():
         parsed_value = None
         if value is not None:
-            parsed_value = int.from_bytes(value, byteorder='little')
-        scale = [meas["scale"] for meas in CONF.ble_measurements if meas["uuid"] == uuid][0]
+            parsed_value = int.from_bytes(value, byteorder="little")
+        scale = [
+            meas["scale"] for meas in CONF.ble_measurements if meas["uuid"] == uuid
+        ][0]
         test.measurements[f"ble_measurement_{name}"] = parsed_value / scale
 
     # Check power on VSYS and export plot
@@ -651,9 +668,7 @@ def ble_packet_test(test):
     export_power_plot()
     test.measurements.ble_power_plot_exported = True
 
-    logger.info(
-        f"BLE Data: {data}"
-    )
+    logger.info(f"BLE Data: {data}")
 
 
 @htf.measures(

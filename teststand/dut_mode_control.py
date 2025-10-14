@@ -47,7 +47,6 @@ class DutModeControl(htf.plugs.BasePlug):
 
         self._current_mode = mode
 
-
     def reset_dut(self, mode: DutMode):
         """Reset the device under test in the given mode"""
         with self.hold_dut_mode_for_reset(mode):
