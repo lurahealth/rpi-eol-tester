@@ -17,7 +17,7 @@ requires-python = ">=3.11"
 [project.scripts]
 teststand = "teststand.main:main"
 assembly = "teststand.assembly:main"
-launch_cli = "teststand.launch_cli:main"
+teststand_cli = "teststand.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["teststand"]
