@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import time
 from enum import Enum
-from typing import Type, TypeVar
 from gpiozero import OutputDevice
 
 
@@ -77,21 +76,17 @@ class PowerPath:
             self.vdut_sel.off()
 
     def apply_config(self, config: PowerPathConfig):
-        # First set the input select to "NONE" to deenergize the power path
-        self._set_vdut_sel(VdutSelect.NONE)
-
-        # Wait a bit for it to apply
-        time.sleep(0.5)
-
-        # Now set other power path options
-        self._set_device_power_supply(config.device_power)
+        # First configure Joulescope measurement
         if config.joulescope_current_meas:
             self.idut_meas_en.on()
         else:
             self.idut_meas_en.off()
 
-        # Wait a bit for it to apply
-        time.sleep(0.5)
-
-        # Finally set the input select to the desired value
+        # Then select vdut
         self._set_vdut_sel(config.vdut_sel)
+
+        # Finally device power supply
+        self._set_device_power_supply(config.device_power)
+
+        # Wait a bit for things to stabilize
+        time.sleep(0.5)
