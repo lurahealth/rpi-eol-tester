@@ -238,8 +238,7 @@ def smoke_test_vbat(test):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VBAT,
             ITEN_DEFAULT,
-            # joulescope_current_meas=True,
-            joulescope_current_meas=False,  # TODO: turn current measurement back on
+            joulescope_current_meas=True,
             iten_current_meas=False,
         )
     )
@@ -276,8 +275,7 @@ def smoke_test_vsys(test):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
-            # joulescope_current_meas=True,
-            joulescope_current_meas=False,  # TODO: turn current measurement back on
+            joulescope_current_meas=True,
             iten_current_meas=False,
         )
     )
@@ -373,8 +371,7 @@ def power_setup_phase(test):
                 VdutSelect.RASPBERRY_PI,
                 DevicePowerSupply.VDUT_VSYS,
                 ITEN_DEFAULT,
-                # joulescope_current_meas=True,
-                joulescope_current_meas=False,  # TODO: turn current measurement back on
+                joulescope_current_meas=True,
                 iten_current_meas=False,
             )
         )
@@ -425,8 +422,7 @@ def led_test(test, user_input: UserInput):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
-            # joulescope_current_meas=True,
-            joulescope_current_meas=False,  # TODO: turn current measurement back on
+            joulescope_current_meas=True,
             iten_current_meas=False,
         )
     )
@@ -465,8 +461,7 @@ def vdd_temp_i2c_test(test):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
-            # joulescope_current_meas=True,
-            joulescope_current_meas=False,  # TODO: turn current measurement back on
+            joulescope_current_meas=True,
             iten_current_meas=False,
         )
     )
@@ -525,8 +520,7 @@ def uart_reset_test(test):
                 VdutSelect.RASPBERRY_PI,
                 DevicePowerSupply.VDUT_VSYS,
                 ITEN_DEFAULT,
-                # joulescope_current_meas=True,
-                joulescope_current_meas=False,  # TODO: turn current measurement back on
+                joulescope_current_meas=True,
                 iten_current_meas=False,
             )
         )
@@ -572,8 +566,7 @@ def mag_latch_test(test, user_input):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VBAT,
             ITEN_DEFAULT,
-            # joulescope_current_meas=True,
-            joulescope_current_meas=False,  # TODO: turn current measurement back on
+            joulescope_current_meas=True,
             iten_current_meas=False,
         )
     )
