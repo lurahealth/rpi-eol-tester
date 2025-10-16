@@ -29,7 +29,7 @@ class JoulescopeMeasurement:
 
 class JoulescopeMux:
     def __init__(self, pin_config: dict[str, int]):
-        self.js_mux_en = OutputDevice(pin_config["pin_js_mux_en"], initial_value=False)
+        self.js_mux_en = OutputDevice(pin_config["pin_js_mux_en"], initial_value=True)
         self.js_imeas_sel0 = OutputDevice(pin_config["pin_js_imeas_sel0"])
         self.js_imeas_sel1 = OutputDevice(pin_config["pin_js_imeas_sel1"])
         self.joulescope = None
