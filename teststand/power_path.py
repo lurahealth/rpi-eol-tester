@@ -46,6 +46,7 @@ DUT_OFF_POWER_PATH = PowerPathConfig(
 
 class PowerPath:
     def __init__(self, pin_config: dict[str, int]):
+        self.vdut_en = OutputDevice(pin_config["pin_vdut_en"])
         self.vdut_sel = OutputDevice(pin_config["pin_vdut_sel"])
         self.vdut_src_sel0 = OutputDevice(pin_config["pin_vdut_src_sel0"])
         self.i_iten_meas_en = OutputDevice(pin_config["pin_i_iten_meas_en"])
@@ -76,6 +77,10 @@ class PowerPath:
             self.vdut_sel.off()
 
     def apply_config(self, config: PowerPathConfig):
+        self.vdut_en.off()
+
+        time.sleep(0.1)
+
         # First configure Joulescope measurement
         if config.joulescope_current_meas:
             self.idut_meas_en.on()
@@ -87,6 +92,10 @@ class PowerPath:
 
         # Finally device power supply
         self._set_device_power_supply(config.device_power)
+
+        time.sleep(0.1)
+
+        self.vdut_en.on()
 
         # Wait a bit for things to stabilize
         time.sleep(0.5)

@@ -29,6 +29,7 @@ class JoulescopeMeasurement:
 
 class JoulescopeMux:
     def __init__(self, pin_config: dict[str, int]):
+        self.js_mux_en = OutputDevice(pin_config["pin_js_mux_en"], initial_value=False)
         self.js_imeas_sel0 = OutputDevice(pin_config["pin_js_imeas_sel0"])
         self.js_imeas_sel1 = OutputDevice(pin_config["pin_js_imeas_sel1"])
         self.joulescope = None
@@ -60,6 +61,8 @@ class JoulescopeMux:
     def apply_config(self, config: JoulescopeMeasurementConfig):
         # Set mux selection
         self._set_mux_select(config.mux_select)
+        time.sleep(0.1)
+        self.js_mux_en.on()
 
         # Wait for mux to settle
         time.sleep(0.1)

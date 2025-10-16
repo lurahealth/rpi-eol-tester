@@ -3,6 +3,7 @@
 
 # Power Path selection pins
 power_pins:
+  pin_vdut_en: GPIO1
   pin_vdut_sel: GPIO17
   pin_vdut_src_sel0: GPIO27
   pin_i_iten_meas_en: GPIO23
@@ -12,15 +13,14 @@ power_pins:
   pin_iten_ch_dchg_sel0: GPIO20
   pin_js_imeas_sel1: GPIO26
   pin_iten_ch_dchg_sel1: GPIO21
+  pin_js_mux_en: GPIO0
 
 # Additional GPIO pins
 pin_i2c_en_uart_en_l: GPIO18
 pin_ids_meas_en: GPIO24
 pin_mosfet_en: GPIO25
-pin_vdut_en: GPIO1
 pin_led0_pwm: GPIO12
 pin_iten_chg_dchg_en: GPIO16
-pin_js_mux_en: GPIO0
 pin_led1_pwm: GPIO13
 pin_dut_reset: GPIO19
 
