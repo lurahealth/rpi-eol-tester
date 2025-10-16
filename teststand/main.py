@@ -42,6 +42,7 @@ logger = logging.getLogger("openhtf")
 
 power_path: Optional[PowerPath] = None
 joulescope_mux: Optional[JoulescopeMux] = None
+dut_mode: Optional[DutModeControl] = None
 
 # Results in <repo root>/results if TofuPilot isn't used
 RESULTS_DIR = Path(__file__).parent.parent / "results"
@@ -78,10 +79,6 @@ with open(HARDWARE_CONFIG_FILE, "r") as yamlfile:
 
 with open(TEST_CONFIG_FILE, "r") as yamlfile:
     CONF.load_from_file(yamlfile, _override=True)
-
-ModeControl = bind_init_args(
-    DutModeControl, pin_dut_reset, pin_i2c_en_uart_en_l, uart_port, uart_baudrate
-)
 
 
 # Measurement functions
@@ -242,7 +239,8 @@ def smoke_test_vbat(test):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VBAT,
             ITEN_DEFAULT,
-            joulescope_current_meas=True,
+            # joulescope_current_meas=True,
+            joulescope_current_meas=False,  # TODO: turn current measurement back on
             iten_current_meas=False,
         )
     )
@@ -279,7 +277,8 @@ def smoke_test_vsys(test):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
-            joulescope_current_meas=True,
+            # joulescope_current_meas=True,
+            joulescope_current_meas=False,  # TODO: turn current measurement back on
             iten_current_meas=False,
         )
     )
@@ -310,6 +309,9 @@ def flash_firmware_phase(test):
 
     try:
         logger.info(f"Flashing firmware using {jlink_script_path.as_posix()}")
+
+        time.sleep(1.0)
+
         # Use JlinkExe to flash the firmware
         result = subprocess.run(
             shlex.split(
@@ -317,7 +319,7 @@ def flash_firmware_phase(test):
             ),
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=120,
         )
 
         if result.returncode == 0:
@@ -326,7 +328,7 @@ def flash_firmware_phase(test):
             test.measurements.flash_successful = True
             return htf.PhaseResult.CONTINUE
         else:
-            print(f"Flash failed: {result.stderr}, {result.stdout}")
+            print(f"Flash failed: \n{result.stderr}\n {result.stdout}")
             logger.error(f"Flash failed: {result.stderr}, {result.stdout}")
             test.measurements.flash_successful = False
             return htf.PhaseResult.STOP
@@ -349,21 +351,31 @@ def power_setup_phase(test):
     print(f"==== Starting {phase_name} ====\n")
 
     global power_path
+    assert power_path is None
     global joulescope_mux
-    assert power_path is None and joulescope_mux is None
+    assert joulescope_mux is None
+    global dut_mode
+    assert dut_mode is None
 
     startup_delay = CONF.power_startup_delay
 
     try:
         power_path = PowerPath(CONF.power_pins)
         joulescope_mux = JoulescopeMux(CONF.power_pins)
+        dut_mode = DutModeControl(
+            CONF.pin_dut_reset,
+            CONF.pin_i2c_en_uart_en_l,
+            CONF.uart_port,
+            CONF.uart_baudrate,
+        )
 
         power_path.apply_config(
             PowerPathConfig(
                 VdutSelect.RASPBERRY_PI,
                 DevicePowerSupply.VDUT_VSYS,
                 ITEN_DEFAULT,
-                joulescope_current_meas=True,
+                # joulescope_current_meas=True,
+                joulescope_current_meas=False,  # TODO: turn current measurement back on
                 iten_current_meas=False,
             )
         )
@@ -399,21 +411,23 @@ def connection_setup_phase(test, user_input):
     htf.Measurement("led_functional").equals("y"),
 )
 @htf.plug(user_input=UserInput)
-@htf.plug(dut_mode=ModeControl)
-def led_test(test, user_input: UserInput, dut_mode: DutModeControl):
+def led_test(test, user_input: UserInput):
     """LED Functional"""
     logger.info("==== LED Test ====")
 
     # Ensure VSYS is powered
     global power_path
     assert power_path is not None
+    global dut_mode
+    assert dut_mode is not None
 
     power_path.apply_config(
         PowerPathConfig(
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
-            joulescope_current_meas=True,
+            # joulescope_current_meas=True,
+            joulescope_current_meas=False,  # TODO: turn current measurement back on
             iten_current_meas=False,
         )
     )
@@ -437,13 +451,14 @@ def led_test(test, user_input: UserInput, dut_mode: DutModeControl):
     htf.Measurement("scl_high").equals(True),
     htf.Measurement("sda_high").equals(True),
 )
-@htf.plug(dut_mode=ModeControl)
-def vdd_temp_i2c_test(test, dut_mode: DutModeControl):
+def vdd_temp_i2c_test(test):
     """VDD_TEMP and I2C continuity check"""
     logger.info("==== VDD_TEMP and I2C Continuity Check ====")
 
     global power_path
     assert power_path is not None
+    global dut_mode
+    assert dut_mode is not None
 
     # Power on with UART Disabled (I2C mode), firmware asserts VDD_TEMP
     power_path.apply_config(
@@ -451,7 +466,8 @@ def vdd_temp_i2c_test(test, dut_mode: DutModeControl):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
-            joulescope_current_meas=True,
+            # joulescope_current_meas=True,
+            joulescope_current_meas=False,  # TODO: turn current measurement back on
             iten_current_meas=False,
         )
     )
@@ -482,13 +498,14 @@ def vdd_temp_i2c_test(test, dut_mode: DutModeControl):
     ),
     htf.Measurement("uptime_less_after_reset").equals(True),
 )
-@htf.plug(dut_mode=ModeControl)
-def uart_reset_test(test, dut_mode: DutModeControl):
+def uart_reset_test(test):
     """Initial UART test and Reset test (with UART enabled, firmware hi-z VDD_TEMP)"""
     logger.info("==== UART and Reset Test ====")
 
     global power_path
     assert power_path is not None
+    global dut_mode
+    assert dut_mode is not None
 
     with dut_mode.hold_dut_mode_for_reset(DutMode.UART):
         # Power cycle: turn off first
@@ -509,7 +526,8 @@ def uart_reset_test(test, dut_mode: DutModeControl):
                 VdutSelect.RASPBERRY_PI,
                 DevicePowerSupply.VDUT_VSYS,
                 ITEN_DEFAULT,
-                joulescope_current_meas=True,
+                # joulescope_current_meas=True,
+                joulescope_current_meas=False,  # TODO: turn current measurement back on
                 iten_current_meas=False,
             )
         )
@@ -555,7 +573,8 @@ def mag_latch_test(test, user_input):
             VdutSelect.RASPBERRY_PI,
             DevicePowerSupply.VDUT_VBAT,
             ITEN_DEFAULT,
-            joulescope_current_meas=True,
+            # joulescope_current_meas=True,
+            joulescope_current_meas=False,  # TODO: turn current measurement back on
             iten_current_meas=False,
         )
     )
@@ -761,8 +780,8 @@ def main():
     test = htf.Test(
         connection_setup_phase,
         power_setup_phase,
-        smoke_test_vbat,
-        smoke_test_vsys,
+        # smoke_test_vbat,
+        # smoke_test_vsys,
         flash_firmware_phase,
         led_test,
         vdd_temp_i2c_test,

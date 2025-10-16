@@ -1,5 +1,6 @@
 erase
-loadfile /home/lura/lura-teststand/firmware-artifacts/firmware.s37
+loadfile /home/lura/rpi-eol-tester/firmware-artifacts/bootloader.s37
+loadfile /home/lura/rpi-eol-tester/firmware-artifacts/firmware.s37
 r
 g
 qc

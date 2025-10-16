@@ -5,8 +5,8 @@ from gpiozero import OutputDevice
 
 
 class DevicePowerSupply(int, Enum):
-    VDUT_VBAT = 0b0
-    VDUT_VSYS = 0b1
+    VDUT_VSYS = 0b0
+    VDUT_VBAT = 0b1
 
 
 class VdutSelect(int, Enum):

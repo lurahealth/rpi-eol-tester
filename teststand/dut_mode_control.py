@@ -2,7 +2,6 @@ from contextlib import contextmanager
 from enum import Enum
 import time
 from gpiozero import OutputDevice
-import openhtf as htf
 from typing import Optional
 
 import serial
@@ -13,7 +12,7 @@ class DutMode(str, Enum):
     I2C = "i2c"
 
 
-class DutModeControl(htf.plugs.BasePlug):
+class DutModeControl:
     """Plug to control DUT boot mode (UART vs I2C)"""
 
     def __init__(
@@ -21,7 +20,8 @@ class DutModeControl(htf.plugs.BasePlug):
     ):
         super().__init__()
         self._mode_mux_pin = OutputDevice(pin_i2c_en_uart_en_l)
-        self._dut_reset_pin = OutputDevice(pin_dut_reset, initial_value=True)
+        # Note that DUT reset pin is reset-high
+        self._dut_reset_pin = OutputDevice(pin_dut_reset, initial_value=False)
 
         self._serial_port = serial_port
         self._baud = baud
@@ -51,9 +51,9 @@ class DutModeControl(htf.plugs.BasePlug):
         """Reset the device under test in the given mode"""
         with self.hold_dut_mode_for_reset(mode):
             # Reset the device
-            self._dut_reset_pin.off()
-            time.sleep(0.05)
             self._dut_reset_pin.on()
+            time.sleep(0.05)
+            self._dut_reset_pin.off()
             time.sleep(0.25)
 
     @property
