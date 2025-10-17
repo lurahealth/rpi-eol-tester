@@ -80,10 +80,10 @@ def main():
         help="Duration over which to take each joulescope measurement",
     )
     parser.add_argument(
-        "--cli",
+        "--uart",
         action="store_true",
         default=False,
-        help="When set, reboot the DUT into CLI mode after setting the muxes",
+        help="When set, reboot the DUT into UART mode after setting the muxes",
     )
     parser.add_argument
     args = parser.parse_args()
@@ -117,7 +117,7 @@ def main():
         )
     )
 
-    if args.cli:
+    if args.uart:
         dut_to_cli_mode(yaml_contents)
 
     if should_measure:
