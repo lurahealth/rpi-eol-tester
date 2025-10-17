@@ -93,10 +93,10 @@ def measure_dut(duration=0.1):
     return joulescope_mux.measure(duration=duration)
 
 
-def establish_uart_connection(port, baudrate=115200, timeout=5):
+def send_uart_cmd(cmd: str, port: str, baudrate=115200, timeout=5):
     """Establish UART connection and check uptime"""
     ser = serial.Serial(port, baudrate, timeout=timeout)
-    ser.write(b"uptime\n")
+    ser.write(f"{cmd}\n".encode())
     time.sleep(0.1)
     response = ser.read(100).decode("utf-8", errors="ignore")
     ser.close()
@@ -104,9 +104,7 @@ def establish_uart_connection(port, baudrate=115200, timeout=5):
     if not response.strip():
         raise RuntimeError("No response from DUT")
 
-    response = response.replace("uptime", "").replace("lura>", "")
-    uptime = float(response.strip())
-    return {"connected": True, "uptime": uptime}
+    return response.replace(cmd, "").replace("lura>", "").strip()
 
 
 def set_sens_en(pin, state):
@@ -427,14 +425,17 @@ def led_test(test, user_input: UserInput):
         )
     )
 
+    dut_mode.reset_dut(DutMode.UART)
+
+    send_uart_cmd("led 1", port=CONF.uart_port, baudrate=CONF.uart_baudrate)
+
     response = user_input.prompt(
         "LED should now be on. Is the LED lit? (y/n)",
         text_input=True,
     )
     test.measurements.led_functional = response
 
-    # Reset the DUT into UART mode for the remainder of the tests
-    dut_mode.reset_dut(DutMode.UART)
+    send_uart_cmd("led 0", port=CONF.uart_port, baudrate=CONF.uart_baudrate)
 
     # TODO: Check power and export plot
     # TODO: plot
@@ -527,16 +528,14 @@ def uart_reset_test(test):
         time.sleep(0.5)
 
     # Establish initial UART link, check uptime
-    uart_result = establish_uart_connection(CONF.uart_port, CONF.uart_baudrate)
-    test.measurements.uart_initial_uptime = uart_result["uptime"]
+    uart_result = send_uart_cmd("uptime", CONF.uart_port, CONF.uart_baudrate)
+    test.measurements.uart_initial_uptime = float(uart_result)
 
     dut_mode.reset_dut(DutMode.UART)
 
-    time.sleep(1)
-
     # Re-establish UART link after reset pin triggered, check uptime
-    uart_result = establish_uart_connection(CONF.uart_port, CONF.uart_baudrate)
-    test.measurements.uart_reset_uptime = uart_result["uptime"]
+    uart_result = send_uart_cmd("uptime", CONF.uart_port, CONF.uart_baudrate)
+    test.measurements.uart_reset_uptime = float(uart_result)
     test.measurements.uptime_less_after_reset = (
         test.measurements.uart_reset_uptime - test.measurements.uart_initial_uptime
     ) < 0
@@ -550,7 +549,6 @@ def uart_reset_test(test):
     htf.Measurement("mag_latch_final_power").in_range(
         -float("inf"), CONF.thresholds["mag_latch_current_max"]
     ),
-    htf.Measurement("magnet_applied").equals("y"),
 )
 @htf.plug(user_input=UserInput)
 def mag_latch_test(test, user_input):
@@ -560,6 +558,8 @@ def mag_latch_test(test, user_input):
     # Set VDUT = VBAT
     global power_path
     assert power_path is not None
+    global dut_mode
+    assert dut_mode is not None
 
     power_path.apply_config(
         PowerPathConfig(
@@ -575,18 +575,22 @@ def mag_latch_test(test, user_input):
     measurement = measure_dut(0.1)
     test.measurements.mag_latch_low_power = measurement.current_a
 
-    # Prompt to apply magnet
-    response = user_input.prompt(
-        "Hover the magnet above the DUT for 1-2 seconds, then press Enter. Was magnet applied? (y/n)",
-        text_input=True,
-    )
-    test.measurements.magnet_applied = response
+    with dut_mode.hold_dut_mode_for_reset(DutMode.UART):
+        # Prompt to apply magnet
+        user_input.prompt(
+            "Hover the magnet above the DUT for 1-2 seconds, then press Enter.",
+            text_input=False,
+        )
+
+    time.sleep(0.5)
 
     # Detect device by establishing UART
-    uart_result = establish_uart_connection(CONF.uart_port, CONF.uart_baudrate)
-    test.measurements.mag_latch_uart_connected = uart_result["connected"]
+    uart_result = send_uart_cmd("uptime", CONF.uart_port, CONF.uart_baudrate)
+    test.measurements.mag_latch_uart_connected = float(uart_result) > 0.0 and float(
+        uart_result
+    ) < float("inf")
 
-    # Send power off command (would send actual command)
+    # TODO: Send power off command
     time.sleep(0.5)
 
     # Confirm low power again
@@ -770,12 +774,12 @@ def main():
 
     # Create test sequence (order matches TEST_SEQUENCE.md)
     test = htf.Test(
-        connection_setup_phase,
+        # connection_setup_phase,
         power_setup_phase,
         # smoke_test_vbat,
         # smoke_test_vsys,
-        flash_firmware_phase,
-        # led_test,
+        # flash_firmware_phase,
+        led_test,
         # vdd_temp_i2c_test,
         uart_reset_test,
         mag_latch_test,

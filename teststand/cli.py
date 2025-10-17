@@ -19,8 +19,13 @@ from .joulescope_mux import (
 )
 import yaml
 import argparse
+import time
+from serial import Serial
 
 HARDWARE_CONFIG_FILE = Path(__file__).parent.parent / "hardware_config.yaml"
+
+# Mode control utility needs to stick around to keep the level shifter enabled
+mode_control = None
 
 
 def dut_to_cli_mode(yaml_contents: dict):
@@ -30,6 +35,7 @@ def dut_to_cli_mode(yaml_contents: dict):
     uart_port = yaml_contents["uart_port"]
     uart_baudrate = yaml_contents["uart_baudrate"]
 
+    global mode_control
     mode_control = DutModeControl(
         pin_dut_reset, pin_i2c_en_uart_en_l, uart_port, uart_baudrate
     )
