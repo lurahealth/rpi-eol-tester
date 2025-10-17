@@ -778,7 +778,7 @@ def main():
         power_setup_phase,
         # smoke_test_vbat,
         # smoke_test_vsys,
-        # flash_firmware_phase,
+        flash_firmware_phase,
         led_test,
         # vdd_temp_i2c_test,
         uart_reset_test,
