@@ -95,6 +95,9 @@ def measure_dut(duration=0.1):
 
 def send_uart_cmd(cmd: str, port: str, baudrate=115200, timeout=5):
     """Establish UART connection and check uptime"""
+
+    logger.info(f"Sending uart command: {cmd}")
+
     ser = serial.Serial(port, baudrate, timeout=timeout)
     ser.write(f"{cmd}\n".encode())
     time.sleep(0.1)
@@ -104,7 +107,10 @@ def send_uart_cmd(cmd: str, port: str, baudrate=115200, timeout=5):
     if not response.strip():
         raise RuntimeError("No response from DUT")
 
-    return response.replace(cmd, "").replace("lura>", "").strip()
+    response = response.replace(cmd, "").replace("lura>", "").strip()
+    logger.info(f"received response: {response}")
+
+    return response
 
 
 def set_sens_en(pin, state):
@@ -149,7 +155,7 @@ def establish_ble_connection(measurements: list[tuple[str, str]]):
         if not lura_device:
             raise RuntimeError("Lura device not found")
 
-        async with BleakClient(lura_device.address) as client:
+        async with BleakClient(lura_device.address, timeout=20.0) as client:
             logger.info(f"Connected to {lura_device.name}")
 
             # Start sensing
@@ -627,6 +633,20 @@ def isfet_mosfet_test(test):
     """ISFET test with MOSFET"""
     logger.info("==== ISFET MOSFET Test ====")
 
+    assert power_path is not None
+    # Power device through vsys without joulescope in the loop
+    power_path.apply_config(
+        PowerPathConfig(
+            vdut_sel=VdutSelect.RASPBERRY_PI,
+            device_power=DevicePowerSupply.VDUT_VSYS,
+            iten_sel=ITEN_DEFAULT,
+            joulescope_current_meas=False,
+            iten_current_meas=False,
+        )
+    )
+    assert dut_mode is not None
+    dut_mode.reset_dut(DutMode.UART)
+
     # Put DUT into sensing mode via UART command
     try:
         ser = serial.Serial(CONF.uart_port, CONF.uart_baudrate, timeout=2)
@@ -674,6 +694,20 @@ def isfet_mosfet_test(test):
 def ble_packet_test(test):
     """BLE packet test"""
     logger.info("==== BLE Packet Test ====")
+
+    assert power_path is not None
+    # Power device through vsys without joulescope in the loop
+    power_path.apply_config(
+        PowerPathConfig(
+            vdut_sel=VdutSelect.RASPBERRY_PI,
+            device_power=DevicePowerSupply.VDUT_VSYS,
+            iten_sel=ITEN_DEFAULT,
+            joulescope_current_meas=False,
+            iten_current_meas=False,
+        )
+    )
+    assert dut_mode is not None
+    dut_mode.reset_dut(DutMode.I2C)
 
     # Establish BLE connection
     connected, data = establish_ble_connection(

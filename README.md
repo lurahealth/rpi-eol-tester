@@ -70,6 +70,30 @@ End-of-line test stand for Lura's M2 Sensor Board
 
 ### Optional Tools
 
+#### Teststand CLI
+
+Included with the teststand is a CLI application for direct control over the power path, measurements, etc.
+
+**Prerequisites**
+
+1. Install screen: `apt install screen`.
+
+**Running**
+
+See `--help` for full list of options:
+
+`uv run teststand_cli --help`
+
+To put the m2 device in CLI mode, run: `uv run teststand_cli --uart`. The CLI will then provide a `screen` command to be run in a SEPARATE TERMINAL (don't close the teststand_cli process, it needs to stay running to hold the test board muxes in the correct states).
+
+**Tips**
+
+* To exit `screen`: `ctrl+a` then `k`
+* All options for `teststand_cli` can be mixed-and-matched. For instance you can set the mux states and launch the uart terminal and start periodic Joulescope measurements all at once.
+
+
+#### Joulescope UI
+
 These instructions are UNTESTED and INCOMPLETE but a good start to getting the joulescope UI working on Raspberry pi if you need to (not required to run the teststand).
 
 1. Install the Joulescope UI by following the instructions here: https://github.com/jetperch/pyjoulescope_ui. Take special note of the Qt dependencies section. Here are the steps I took to resolve my missing dependencies: https://forums.raspberrypi.com/viewtopic.php?t=375351 (navigating to download.qt.io/official_releases and looking for the most recent release /single/qt-everywhere-src-&lt;version&gt;.tar.gz)
