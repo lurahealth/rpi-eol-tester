@@ -9,7 +9,7 @@ from openhtf.plugs import user_input
 from openhtf.output.callbacks import json_factory, console_summary
 from openhtf.output.servers import station_server
 from openhtf.output.web_gui import web_launcher
-from openhtf.util.configuration import CONF, bind_init_args
+from openhtf.util.configuration import CONF
 from openhtf.plugs.user_input import UserInput
 import time
 import logging
@@ -373,6 +373,10 @@ def power_setup_phase(test):
                 iten_current_meas=False,
             )
         )
+        joulescope_mux.apply_config(
+            JoulescopeMeasurementConfig(JoulescopeMuxSelect.DEVICE_UNDER_TEST)
+        )
+
         test.measurements.power_setup_successful = True
 
     except Exception as e:
@@ -402,7 +406,8 @@ def connection_setup_phase(test, user_input):
 
 
 @htf.measures(
-    htf.Measurement("led_functional").equals("y"),
+    htf.Measurement("led_functional_on").equals("y"),
+    htf.Measurement("led_functional_off").equals("y"),
 )
 @htf.plug(user_input=UserInput)
 def led_test(test, user_input: UserInput):
@@ -430,12 +435,18 @@ def led_test(test, user_input: UserInput):
     send_uart_cmd("led 1", port=CONF.uart_port, baudrate=CONF.uart_baudrate)
 
     response = user_input.prompt(
-        "LED should now be on. Is the LED lit? (y/n)",
+        "LED should now be ON. Is the LED lit? (y/n)",
         text_input=True,
     )
-    test.measurements.led_functional = response
+    test.measurements.led_functional_on = response
 
     send_uart_cmd("led 0", port=CONF.uart_port, baudrate=CONF.uart_baudrate)
+
+    response = user_input.prompt(
+        "LED should now be OFF. Is the LED dark? (y/n)",
+        text_input=True,
+    )
+    test.measurements.led_functional_off = response
 
     # TODO: Check power and export plot
     # TODO: plot
@@ -555,12 +566,12 @@ def mag_latch_test(test, user_input):
     """Magnetic latch test"""
     logger.info("==== Magnetic Latch Test ====")
 
-    # Set VDUT = VBAT
     global power_path
     assert power_path is not None
     global dut_mode
     assert dut_mode is not None
 
+    # Set VDUT = VBAT
     power_path.apply_config(
         PowerPathConfig(
             VdutSelect.RASPBERRY_PI,
@@ -572,7 +583,7 @@ def mag_latch_test(test, user_input):
     )
 
     # Check low power state
-    measurement = measure_dut(0.1)
+    measurement = measure_dut(1.0)
     test.measurements.mag_latch_low_power = measurement.current_a
 
     with dut_mode.hold_dut_mode_for_reset(DutMode.UART):
@@ -590,11 +601,13 @@ def mag_latch_test(test, user_input):
         uart_result
     ) < float("inf")
 
-    # TODO: Send power off command
-    time.sleep(0.5)
+    send_uart_cmd("shutdown", CONF.uart_port, CONF.uart_baudrate)
+
+    # Voltage can take some time to decay
+    time.sleep(3.0)
 
     # Confirm low power again
-    measurement = measure_dut(0.1)
+    measurement = measure_dut(1.0)
     test.measurements.mag_latch_final_power = measurement.current_a
 
 
