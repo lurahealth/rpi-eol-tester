@@ -32,7 +32,6 @@ class PowerPathConfig:
     device_power: DevicePowerSupply
     iten_sel: ItenSelect
     joulescope_current_meas: bool
-    iten_current_meas: bool
 
 
 DUT_OFF_POWER_PATH = PowerPathConfig(
@@ -40,7 +39,6 @@ DUT_OFF_POWER_PATH = PowerPathConfig(
     device_power=DevicePowerSupply.VDUT_VSYS,
     iten_sel=ITEN_DEFAULT,
     joulescope_current_meas=True,
-    iten_current_meas=False,
 )
 
 
@@ -49,7 +47,6 @@ class PowerPath:
         self.vdut_en = OutputDevice(pin_config["pin_vdut_en"])
         self.vdut_sel = OutputDevice(pin_config["pin_vdut_sel"])
         self.vdut_src_sel0 = OutputDevice(pin_config["pin_vdut_src_sel0"])
-        self.i_iten_meas_en = OutputDevice(pin_config["pin_i_iten_meas_en"])
         self.vdut_src_sel1 = OutputDevice(pin_config["pin_vdut_src_sel1"])
         self.idut_meas_en = OutputDevice(pin_config["pin_idut_meas_en"])
         self.iten_ch_dchg_sel0 = OutputDevice(pin_config["pin_iten_ch_dchg_sel0"])

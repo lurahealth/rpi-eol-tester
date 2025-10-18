@@ -8,6 +8,9 @@ use_tofupilot: False
 procedure_id: e7ba6f6c-8ec9-11f0-aec1-f39e79a20a3c
 part_number: LURA_M2
 
+# Set this true to use the onboard mosfet
+use_onboard_mosfet: True
+
 # EOL Test thresholds
 thresholds:
   # Smoke test thresholds

@@ -15,13 +15,6 @@ class JoulescopeMuxSelect(int, Enum):
 
 
 @dataclass(frozen=True)
-class JoulescopeMeasurementConfig:
-    mux_select: JoulescopeMuxSelect
-    measure_current: bool = True
-    measure_voltage: bool = True
-
-
-@dataclass(frozen=True)
 class JoulescopeMeasurement:
     voltage_v: float
     current_a: float
@@ -30,9 +23,11 @@ class JoulescopeMeasurement:
 
 class JoulescopeMux:
     def __init__(self, pin_config: dict[str, int]):
-        self.js_mux_en = OutputDevice(pin_config["pin_js_mux_en"], initial_value=True)
+        self.js_mux_en = OutputDevice(pin_config["pin_js_mux_en"], initial_value=False)
         self.js_imeas_sel0 = OutputDevice(pin_config["pin_js_imeas_sel0"])
         self.js_imeas_sel1 = OutputDevice(pin_config["pin_js_imeas_sel1"])
+        self.i_iten_meas_en = OutputDevice(pin_config["pin_i_iten_meas_en"])
+        self.ids_meas_en = OutputDevice(pin_config["pin_ids_meas_en"])
         self.joulescope = None
 
     def _set_mux_select(self, mux_select: JoulescopeMuxSelect):
@@ -59,9 +54,22 @@ class JoulescopeMux:
             self.joulescope.close()
             self.joulescope = None
 
-    def apply_config(self, config: JoulescopeMeasurementConfig):
+    def apply_config(self, mux_select: JoulescopeMuxSelect):
         # Set mux selection
-        self._set_mux_select(config.mux_select)
+        self.js_mux_en.off()
+
+        self._set_mux_select(mux_select)
+
+        if mux_select == JoulescopeMuxSelect.ITEN:
+            self.i_iten_meas_en.on()
+        else:
+            self.i_iten_meas_en.off()
+
+        if mux_select == JoulescopeMuxSelect.FET_DRAIN_SOURCE:
+            self.ids_meas_en.on()
+        else:
+            self.ids_meas_en.off()
+
         time.sleep(0.1)
         self.js_mux_en.on()
 
@@ -71,11 +79,6 @@ class JoulescopeMux:
         # Connect to Joulescope if not already connected
         self.connect_joulescope()
 
-        # Configure measurement parameters based on selection
-        if config.mux_select == JoulescopeMuxSelect.ISFET_OUT:
-            # ISFET mode: voltage only, no current measurement
-            if config.measure_current:
-                raise ValueError("Current measurement not available for ISFET_OUT mode")
 
     def measure(
         self, duration: float = 0.1, output: Literal["avg", "max", "min"] = "avg"

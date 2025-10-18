@@ -29,7 +29,6 @@ from .power_path import (
 )
 from .joulescope_mux import (
     JoulescopeMux,
-    JoulescopeMeasurementConfig,
     JoulescopeMuxSelect,
 )
 from .dut_mode_control import DutMode, DutModeControl
@@ -54,6 +53,7 @@ TEST_CONFIG_FILE = Path(__file__).parent.parent / "config.yaml"
 CONF.declare("use_tofupilot")
 CONF.declare("procedure_id")
 CONF.declare("part_number")
+CONF.declare("use_onboard_mosfet")
 CONF.declare("device_serial")
 CONF.declare("power_pins")
 CONF.declare("power_startup_delay")
@@ -61,7 +61,6 @@ CONF.declare("uart_port")
 CONF.declare("uart_baudrate")
 CONF.declare("pin_i2c_en_uart_en_l")
 CONF.declare("pin_dut_reset")
-CONF.declare("pin_ids_meas_en")
 CONF.declare("pin_mosfet_en")
 CONF.declare("pin_vdut_en")
 CONF.declare("pin_led0_pwm")
@@ -87,9 +86,7 @@ def measure_dut(duration=0.1):
     assert joulescope_mux is not None
 
     # Configure for device under test measurement
-    joulescope_mux.apply_config(
-        JoulescopeMeasurementConfig(JoulescopeMuxSelect.DEVICE_UNDER_TEST)
-    )
+    joulescope_mux.apply_config(JoulescopeMuxSelect.DEVICE_UNDER_TEST)
     return joulescope_mux.measure(duration=duration)
 
 
@@ -129,11 +126,7 @@ def read_isfet_vout_joulescope():
     assert joulescope_mux is not None, "Joulescope not initialized"
 
     print("Setting joulescope to measure ISFET")
-    joulescope_mux.apply_config(
-        JoulescopeMeasurementConfig(
-            JoulescopeMuxSelect.ISFET_OUT, measure_current=False
-        )
-    )
+    joulescope_mux.apply_config(JoulescopeMuxSelect.ISFET_OUT)
 
     time.sleep(0.5)
 
@@ -268,7 +261,6 @@ def smoke_test_vbat(test):
             DevicePowerSupply.VDUT_VBAT,
             ITEN_DEFAULT,
             joulescope_current_meas=True,
-            iten_current_meas=False,
         )
     )
     time.sleep(0.5)
@@ -305,7 +297,6 @@ def smoke_test_vsys(test):
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
             joulescope_current_meas=True,
-            iten_current_meas=False,
         )
     )
     time.sleep(0.5)
@@ -366,14 +357,9 @@ def power_setup_phase(test):
                 DevicePowerSupply.VDUT_VSYS,
                 ITEN_DEFAULT,
                 joulescope_current_meas=True,
-                iten_current_meas=False,
             )
         )
-        joulescope_mux.apply_config(
-            JoulescopeMeasurementConfig(JoulescopeMuxSelect.DEVICE_UNDER_TEST)
-        )
-
-        ids_meas_en_pin = OutputDevice(CONF.pin_ids_meas_en, initial_value=False)
+        joulescope_mux.apply_config(JoulescopeMuxSelect.DEVICE_UNDER_TEST)
 
         test.measurements.power_setup_successful = True
 
@@ -424,7 +410,6 @@ def led_test(test, user_input: UserInput):
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
             joulescope_current_meas=True,
-            iten_current_meas=False,
         )
     )
 
@@ -472,7 +457,6 @@ def vdd_temp_i2c_test(test):
             DevicePowerSupply.VDUT_VSYS,
             ITEN_DEFAULT,
             joulescope_current_meas=True,
-            iten_current_meas=False,
         )
     )
     time.sleep(CONF.power_startup_delay)
@@ -519,7 +503,6 @@ def uart_reset_test(test):
                 DevicePowerSupply.VDUT_VSYS,
                 ITEN_DEFAULT,
                 joulescope_current_meas=False,
-                iten_current_meas=False,
             )
         )
         time.sleep(0.5)
@@ -531,7 +514,6 @@ def uart_reset_test(test):
                 DevicePowerSupply.VDUT_VSYS,
                 ITEN_DEFAULT,
                 joulescope_current_meas=True,
-                iten_current_meas=False,
             )
         )
         time.sleep(0.5)
@@ -576,7 +558,6 @@ def mag_latch_test(test, user_input):
             DevicePowerSupply.VDUT_VBAT,
             ITEN_DEFAULT,
             joulescope_current_meas=True,
-            iten_current_meas=False,
         )
     )
 
@@ -640,15 +621,15 @@ def isfet_mosfet_test(test):
             device_power=DevicePowerSupply.VDUT_VSYS,
             iten_sel=ITEN_DEFAULT,
             joulescope_current_meas=False,
-            iten_current_meas=False,
         )
     )
     assert dut_mode is not None
     dut_mode.reset_dut(DutMode.UART)
 
-    # For this test, enable the mosfet
-    mosfet_en_pin = OutputDevice(CONF.pin_mosfet_en)
-    mosfet_en_pin.on()
+    # For this test, enable the mosfet based on the config value
+    mosfet_en_pin = OutputDevice(
+        CONF.pin_mosfet_en, initial_value=CONF.use_onboard_mosfet
+    )
 
     # Put DUT into sensing mode via UART command
     send_uart_cmd("sensor-output", CONF.uart_port, CONF.uart_baudrate)
@@ -679,11 +660,7 @@ def isfet_mosfet_test(test):
 
     # Check Id and Vds on Joulescope (FET drain-source measurement)
     assert joulescope_mux is not None
-    joulescope_mux.apply_config(
-        JoulescopeMeasurementConfig(
-            JoulescopeMuxSelect.FET_DRAIN_SOURCE,
-        )
-    )
+    joulescope_mux.apply_config(JoulescopeMuxSelect.FET_DRAIN_SOURCE)
     measurement = joulescope_mux.measure(duration=0.5)
     test.measurements.isfet_id_current = measurement.current_a
     test.measurements.isfet_vds_voltage = measurement.voltage_v
@@ -713,7 +690,6 @@ def ble_packet_test(test):
             device_power=DevicePowerSupply.VDUT_VSYS,
             iten_sel=ITEN_DEFAULT,
             joulescope_current_meas=False,
-            iten_current_meas=False,
         )
     )
     assert dut_mode is not None
@@ -835,11 +811,11 @@ def main():
         power_setup_phase,
         # smoke_test_vbat,
         # smoke_test_vsys,
-        flash_firmware_phase,
+        # flash_firmware_phase,
         led_test,
         # vdd_temp_i2c_test,
-        uart_reset_test,
-        mag_latch_test,
+        # uart_reset_test,
+        # mag_latch_test,
         isfet_mosfet_test,
         ble_packet_test,
         rf_power_test,

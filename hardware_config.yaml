@@ -14,10 +14,10 @@ power_pins:
   pin_js_imeas_sel1: GPIO26
   pin_iten_ch_dchg_sel1: GPIO21
   pin_js_mux_en: GPIO0
+  pin_ids_meas_en: GPIO24
 
 # Additional GPIO pins
 pin_i2c_en_uart_en_l: GPIO18
-pin_ids_meas_en: GPIO24
 pin_mosfet_en: GPIO25
 pin_led0_pwm: GPIO12
 pin_iten_chg_dchg_en: GPIO16

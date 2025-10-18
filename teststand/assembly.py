@@ -17,7 +17,6 @@ from pathlib import Path
 from .power_path import PowerPath, PowerPathConfig, VdutSelect, DevicePowerSupply
 from .joulescope_mux import (
     JoulescopeMux,
-    JoulescopeMeasurementConfig,
     JoulescopeMuxSelect,
 )
 from tofupilot.openhtf import TofuPilot
@@ -99,20 +98,14 @@ def read_isfet_adc_values():
         }
 
     # Configure Joulescope to read ISFET output
-    joulescope_mux.apply_config(
-        JoulescopeMeasurementConfig(
-            JoulescopeMuxSelect.ISFET_OUT,
-            measure_current=False,  # Voltage measurement only
-        )
-    )
+    joulescope_mux.apply_config(JoulescopeMuxSelect.ISFET_OUT)
 
     # Read voltage in air
     air_measurement = joulescope_mux.measure(duration=0.1)
-    air_voltage = air_measurement["voltage_v"]
 
     return {
-        "air_voltage": air_voltage,
-        "water_voltage": air_voltage + 0.2,  # Simulate water measurement
+        "air_voltage": air_measurement.voltage_v,
+        # "water_voltage": air_voltage + 0.2,  # Simulate water measurement
     }
 
 

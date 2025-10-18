@@ -15,7 +15,6 @@ from .power_path import (
     PowerPath,
 )
 from .joulescope_mux import (
-    JoulescopeMeasurementConfig,
     JoulescopeMuxSelect,
     JoulescopeMux,
 )
@@ -129,11 +128,10 @@ def main():
             vdut_sel=VdutSelect[args.vdut_sel],
             device_power=DevicePowerSupply[args.input_sel],
             iten_sel=ItenSelect[args.iten_sel],
-            # Put the joulescope in the loop iff the measurement is of the DUT
+            # Put the joulescope in the loop for DUT power iff the measurement is of the DUT
             joulescope_current_meas=(
                 args.meas == JoulescopeMuxSelect.DEVICE_UNDER_TEST.name
             ),
-            iten_current_meas=False,  # ITEN current measurement is not yet supported
         )
     )
 
@@ -148,15 +146,7 @@ def main():
 
     if should_measure:
         print("Connecting to Joulescope...")
-        joulescope_mux.apply_config(
-            JoulescopeMeasurementConfig(
-                mux_select=JoulescopeMuxSelect[args.meas]
-                if should_measure
-                else JoulescopeMuxSelect.DEVICE_UNDER_TEST,
-                measure_current=True,
-                measure_voltage=True,
-            )
-        )
+        joulescope_mux.apply_config(JoulescopeMuxSelect[args.meas])
         print(f"Beginning Joulescope measurements of {args.meas}")
 
     try:
