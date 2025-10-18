@@ -3,7 +3,6 @@ OpenHTF test station for the Lura Health M2 sensor board
 """
 
 import re
-import shlex
 from typing import Dict, Optional
 import openhtf as htf
 from openhtf.plugs import user_input
@@ -15,7 +14,6 @@ from openhtf.plugs.user_input import UserInput
 import time
 import logging
 from pathlib import Path
-import subprocess
 import serial
 import asyncio
 from gpiozero import OutputDevice, InputDevice
@@ -36,6 +34,7 @@ from .joulescope_mux import (
 )
 from .dut_mode_control import DutMode, DutModeControl
 from tofupilot.openhtf import TofuPilot
+from .flash_firmware import flash_firmware
 
 logger = logging.getLogger("openhtf")
 
@@ -328,45 +327,8 @@ def flash_firmware_phase(test):
     logger.info(f"==== Starting {phase_name} ====")
     print(f"==== Starting {phase_name} ====\n")
 
-    jlink_script_path = Path(__file__).parent / "flash.jlink"
-    if not jlink_script_path.exists():
-        logger.error(f"JLink flash script ({jlink_script_path.as_posix()}) not found!")
-        test.measurements.flash_successful = False
-        return htf.PhaseResult.STOP
-
-    try:
-        logger.info(f"Flashing firmware using {jlink_script_path.as_posix()}")
-
-        time.sleep(1.0)
-
-        # Use JlinkExe to flash the firmware
-        result = subprocess.run(
-            shlex.split(
-                f"JLinkExe -device EFR32BG27CxxxF768 -if SWD -speed 10000 -CommanderScript {jlink_script_path.as_posix()} -ExitOnError 1"
-            ),
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-        if result.returncode == 0:
-            print("Firmware flashed successfully")
-            logger.info("Firmware flashed successfully")
-            test.measurements.flash_successful = True
-            return htf.PhaseResult.CONTINUE
-        else:
-            print(f"Flash failed: \n{result.stderr}\n {result.stdout}")
-            logger.error(f"Flash failed: {result.stderr}, {result.stdout}")
-            test.measurements.flash_successful = False
-            return htf.PhaseResult.STOP
-
-    except subprocess.TimeoutExpired:
-        logger.error("Flash timeout")
-        test.measurements.flash_successful = False
-        return htf.PhaseResult.STOP
-    except Exception as e:
-        logger.error(f"Flash error: {e}")
-        test.measurements.flash_successful = False
+    test.measurements.flash_successful = flash_firmware()
+    if not test.measurements.flash_successful:
         return htf.PhaseResult.STOP
 
 

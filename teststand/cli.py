@@ -3,6 +3,8 @@ Simple CLI to control features of the Lura EoL test motherboard and DUT for one-
 """
 
 from pathlib import Path
+
+from .flash_firmware import flash_firmware
 from .dut_mode_control import DutMode, DutModeControl
 from .power_path import (
     DevicePowerSupply,
@@ -89,7 +91,12 @@ def main():
         default=False,
         help="When set, reboot the DUT into UART mode after setting the muxes",
     )
-    parser.add_argument
+    parser.add_argument(
+        "--flash",
+        action="store_true",
+        default=False,
+        help="Flash firmware to the DUT prior to launching the CLI or measurements",
+    )
     args = parser.parse_args()
 
     # Load configuration from YAML files
@@ -110,6 +117,12 @@ def main():
             iten_current_meas=False,  # ITEN current measurement is not yet supported
         )
     )
+
+    if args.flash:
+        print("Flashing device firmware...")
+        if not flash_firmware():
+            print("Error flashing firmware, Exiting...")
+            return
 
     if args.uart:
         dut_to_cli_mode(yaml_contents)
