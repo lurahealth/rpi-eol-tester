@@ -28,6 +28,7 @@ thresholds:
   # ISFET test thresholds
   isfet_vout_min: 0.0
   isfet_vout_max: 2.63
+  isfet_vout_max_delta: 0.75      # Max difference between Joulescope and DUT measurement of ISFET_VOUT
   isfet_id_current_min: 95.0e-6   # 95uA (100uA - 5%)
   isfet_id_current_max: 105.0e-6  # 105uA (100uA + 5%)
   isfet_vds_voltage_min: 0.57     # 570mV (600mV - 5%)
@@ -41,6 +42,14 @@ thresholds:
   ble_vbat_min: 2.60         # 2.60V (2.63V - 1%)
   ble_vbat_max: 2.66         # 2.66V (2.63V + 1%)
 
+  # RF Power thresholds
+  rf_power_min: 0     # dBm
+  rf_power_max: 100   # dBm
+
+  # Coil impedence thresholds
+  coil_rx_impedance_min: 0    # Ohm
+  coil_rx_impedance_max: 100  # Ohm
+
 ble_sensor_data_service_uuid: eb916eba-dd6b-4ec7-b25c-62d69992c410
 sense_enable_characteristic_uuid: 270c46d0-0382-4732-a35b-491ed5fb1318
 
@@ -52,14 +61,14 @@ ble_measurements:
     name: ph
     min: 0
     max: 10.0
-    scale: 1.0
+    scale: 1000 # mV to V
   - uuid: 43d2b9e3-7a5f-4a04-b864-b4687ca505c8
     name: temperature
     min: 0
     max: 100
-    scale: 1.0
+    scale: 1000 # mV to V
   - uuid: d35c35aa-91a8-4f6d-a8c2-ec2860cb95bf
     name: battery_voltage
     min: 0
     max: 3.3
-    scale: 1.0
+    scale: 1000 # mV to V

@@ -2,6 +2,7 @@
 OpenHTF test station for the Lura Health M2 sensor board
 """
 
+import re
 import shlex
 from typing import Dict, List, Optional
 import openhtf as htf
@@ -43,6 +44,8 @@ logger = logging.getLogger("openhtf")
 power_path: Optional[PowerPath] = None
 joulescope_mux: Optional[JoulescopeMux] = None
 dut_mode: Optional[DutModeControl] = None
+mosfet_en_pin: Optional[OutputDevice] = None
+ids_meas_en_pin: Optional[OutputDevice] = None
 
 # Results in <repo root>/results if TofuPilot isn't used
 RESULTS_DIR = Path(__file__).parent.parent / "results"
@@ -51,26 +54,26 @@ HARDWARE_CONFIG_FILE = Path(__file__).parent.parent / "hardware_config.yaml"
 TEST_CONFIG_FILE = Path(__file__).parent.parent / "config.yaml"
 
 # Declare configuration keys
-use_tofupilot = CONF.declare("use_tofupilot")
-procedure_id = CONF.declare("procedure_id")
-part_number = CONF.declare("part_number")
-device_serial = CONF.declare("device_serial")
-power_pins = CONF.declare("power_pins")
-power_startup_delay = CONF.declare("power_startup_delay")
-uart_port = CONF.declare("uart_port")
-uart_baudrate = CONF.declare("uart_baudrate")
-pin_i2c_en_uart_en_l = CONF.declare("pin_i2c_en_uart_en_l")
-pin_dut_reset = CONF.declare("pin_dut_reset")
-pin_ids_meas_en = CONF.declare("pin_ids_meas_en")
-pin_mosfet_en = CONF.declare("pin_mosfet_en")
-pin_vdut_en = CONF.declare("pin_vdut_en")
-pin_led0_pwm = CONF.declare("pin_led0_pwm")
-pin_iten_chg_dchg_en = CONF.declare("pin_iten_chg_dchg_en")
-pin_led1_pwm = CONF.declare("pin_led1_pwm")
-thresholds = CONF.declare("thresholds")
-ble_sensor_data_service_uuid = CONF.declare("ble_sensor_data_service_uuid")
-sense_enable_characteristic_uuid = CONF.declare("sense_enable_characteristic_uuid")
-ble_measurements = CONF.declare("ble_measurements")
+CONF.declare("use_tofupilot")
+CONF.declare("procedure_id")
+CONF.declare("part_number")
+CONF.declare("device_serial")
+CONF.declare("power_pins")
+CONF.declare("power_startup_delay")
+CONF.declare("uart_port")
+CONF.declare("uart_baudrate")
+CONF.declare("pin_i2c_en_uart_en_l")
+CONF.declare("pin_dut_reset")
+CONF.declare("pin_ids_meas_en")
+CONF.declare("pin_mosfet_en")
+CONF.declare("pin_vdut_en")
+CONF.declare("pin_led0_pwm")
+CONF.declare("pin_iten_chg_dchg_en")
+CONF.declare("pin_led1_pwm")
+CONF.declare("thresholds")
+CONF.declare("ble_sensor_data_service_uuid")
+CONF.declare("sense_enable_characteristic_uuid")
+CONF.declare("ble_measurements")
 
 # Load configuration from YAML files
 with open(HARDWARE_CONFIG_FILE, "r") as yamlfile:
@@ -123,19 +126,40 @@ def set_sens_en(pin, state):
     sens_en.close()
 
 
-def read_isfet_vout(duration=0.1):
+def read_isfet_vout_joulescope():
     """Read ISFET_VOUT voltage using Joulescope"""
     global joulescope_mux
     assert joulescope_mux is not None, "Joulescope not initialized"
 
+    print("Setting joulescope to measure ISFET")
     joulescope_mux.apply_config(
         JoulescopeMeasurementConfig(
             JoulescopeMuxSelect.ISFET_OUT, measure_current=False
         )
     )
 
-    measurement = joulescope_mux.measure(duration=duration)
+    time.sleep(0.5)
+
+    # Taking a max is a rough way to avoid having to synchronize with the device's sampling
+    measurement = joulescope_mux.measure(duration=5.0, output="max")
+
+    print("Done measuring")
+
     return measurement.voltage_v
+
+
+def read_isfet_vout_dut_uart(duration_s=5.0) -> list[float]:
+    """Read ISFET_VOUT via the device's uart"""
+
+    readings = ""
+    ser = serial.Serial(CONF.uart_port, CONF.uart_baudrate, timeout=5.0)
+    start = time.time()
+    while time.time() < start + duration_s:
+        # Reading format: "ISFET_D: 0, ISFET_S: 54, ISFET_VOUT: 2078, VBAT: 2477, UP: 76949"
+        readings += ser.read(100).decode("utf-8", errors="ignore")
+    ser.close()
+
+    return [float(m) / 1000.0 for m in re.findall(r"ISFET_VOUT:\s*(\d+)", readings)]
 
 
 def establish_ble_connection(measurements: list[tuple[str, str]]):
@@ -155,8 +179,12 @@ def establish_ble_connection(measurements: list[tuple[str, str]]):
         if not lura_device:
             raise RuntimeError("Lura device not found")
 
-        async with BleakClient(lura_device.address, timeout=20.0) as client:
+        logger.info(f"Connecting to {lura_device.name}...")
+        print(f"Connecting to {lura_device.name}...")
+
+        async with BleakClient(lura_device.address, timeout=30.0) as client:
             logger.info(f"Connected to {lura_device.name}")
+            print(f"Connected to {lura_device.name}")
 
             # Start sensing
             await client.write_gatt_char(
@@ -357,6 +385,8 @@ def power_setup_phase(test):
     assert joulescope_mux is None
     global dut_mode
     assert dut_mode is None
+    global ids_meas_en_pin
+    assert ids_meas_en_pin is None
 
     startup_delay = CONF.power_startup_delay
 
@@ -382,6 +412,8 @@ def power_setup_phase(test):
         joulescope_mux.apply_config(
             JoulescopeMeasurementConfig(JoulescopeMuxSelect.DEVICE_UNDER_TEST)
         )
+
+        ids_meas_en_pin = OutputDevice(CONF.pin_ids_meas_en, initial_value=False)
 
         test.measurements.power_setup_successful = True
 
@@ -618,8 +650,15 @@ def mag_latch_test(test, user_input):
 
 
 @htf.measures(
+    htf.Measurement("isfet_vout_ref").in_range(
+        CONF.thresholds["isfet_vout_min"], CONF.thresholds["isfet_vout_max"]
+    ),
     htf.Measurement("isfet_vout").in_range(
         CONF.thresholds["isfet_vout_min"], CONF.thresholds["isfet_vout_max"]
+    ),
+    htf.Measurement("isfet_vout_delta").in_range(
+        -1 * CONF.thresholds["isfet_vout_max_delta"],
+        CONF.thresholds["isfet_vout_max_delta"],
     ),
     htf.Measurement("isfet_id_current").in_range(
         CONF.thresholds["isfet_id_current_min"], CONF.thresholds["isfet_id_current_max"]
@@ -647,18 +686,36 @@ def isfet_mosfet_test(test):
     assert dut_mode is not None
     dut_mode.reset_dut(DutMode.UART)
 
-    # Put DUT into sensing mode via UART command
-    try:
-        ser = serial.Serial(CONF.uart_port, CONF.uart_baudrate, timeout=2)
-        ser.write(b"sens_en 1\n")
-        time.sleep(0.5)
-        ser.close()
-    except Exception as e:
-        logger.warning(f"Failed to enable sensing mode: {e}")
+    # For this test, enable the mosfet
+    mosfet_en_pin = OutputDevice(CONF.pin_mosfet_en)
+    mosfet_en_pin.on()
 
-    # Report ISFET_VOUT
-    vout = read_isfet_vout()
-    test.measurements.isfet_vout = vout
+    # Put DUT into sensing mode via UART command
+    send_uart_cmd("sensor-output", CONF.uart_port, CONF.uart_baudrate)
+
+    # Wait for sampling to start
+    time.sleep(1.0)
+
+    # Read isfet_vout from joulescope for reference
+    vout_joulescope = read_isfet_vout_joulescope()
+    print(vout_joulescope)
+    test.measurements.isfet_vout_ref = vout_joulescope
+
+    # Read isfet_vout from DUT
+    isfet_vout_readings = read_isfet_vout_dut_uart(5.0)
+    print(isfet_vout_readings)
+    if len(isfet_vout_readings) < 2:
+        logger.error("Not enough ISFET readings found from uart console")
+        mosfet_en_pin.off()
+        return htf.PhaseResult.FAIL_AND_CONTINUE
+
+    test.measurements.isfet_vout = sum(isfet_vout_readings) / float(
+        len(isfet_vout_readings)
+    )
+
+    test.measurements.isfet_vout_delta = (
+        test.measurements.isfet_vout - test.measurements.isfet_vout_ref
+    )
 
     # Check Id and Vds on Joulescope (FET drain-source measurement)
     assert joulescope_mux is not None
@@ -671,14 +728,7 @@ def isfet_mosfet_test(test):
     test.measurements.isfet_id_current = measurement.current_a
     test.measurements.isfet_vds_voltage = measurement.voltage_v
 
-    # Turn off sensing mode via UART command
-    try:
-        ser = serial.Serial(CONF.uart_port, CONF.uart_baudrate, timeout=2)
-        ser.write(b"sens_en 0\n")
-        time.sleep(0.1)
-        ser.close()
-    except Exception as e:
-        logger.warning(f"Failed to disable sensing mode: {e}")
+    mosfet_en_pin.off()
 
 
 @htf.measures(
@@ -719,7 +769,7 @@ def ble_packet_test(test):
     for (uuid, name), value in data.items():
         parsed_value = None
         if value is not None:
-            parsed_value = int.from_bytes(value, byteorder="little")
+            parsed_value = int.from_bytes(value, byteorder="big")
         scale = [
             meas["scale"] for meas in CONF.ble_measurements if meas["uuid"] == uuid
         ][0]
@@ -735,16 +785,16 @@ def ble_packet_test(test):
 
 @htf.measures(
     htf.Measurement("rf_power_center").in_range(
-        CONF.thresholds.get("rf_power_min", -float("inf")),
-        CONF.thresholds.get("rf_power_max", float("inf")),
+        CONF.thresholds.get("rf_power_min"),
+        CONF.thresholds.get("rf_power_max"),
     ),
     htf.Measurement("rf_power_low").in_range(
-        CONF.thresholds.get("rf_power_min", -float("inf")),
-        CONF.thresholds.get("rf_power_max", float("inf")),
+        CONF.thresholds.get("rf_power_min"),
+        CONF.thresholds.get("rf_power_max"),
     ),
     htf.Measurement("rf_power_high").in_range(
-        CONF.thresholds.get("rf_power_min", -float("inf")),
-        CONF.thresholds.get("rf_power_max", float("inf")),
+        CONF.thresholds.get("rf_power_min"),
+        CONF.thresholds.get("rf_power_max"),
     ),
 )
 @htf.plug(user_input=UserInput)
@@ -789,8 +839,8 @@ def rf_power_test(test, user_input):
 
 @htf.measures(
     htf.Measurement("rx_impedance").in_range(
-        CONF.thresholds.get("rx_impedance_min", -float("inf")),
-        CONF.thresholds.get("rx_impedance_max", float("inf")),
+        CONF.thresholds.get("coil_rx_impedance_min"),
+        CONF.thresholds.get("coil_rx_impedance_max"),
     ),
 )
 @htf.plug(user_input=UserInput)

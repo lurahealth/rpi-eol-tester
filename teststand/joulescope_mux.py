@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import time
 from enum import Enum
+from typing import Literal
 from gpiozero import OutputDevice
 import joulescope
 import numpy as np
@@ -76,16 +77,29 @@ class JoulescopeMux:
             if config.measure_current:
                 raise ValueError("Current measurement not available for ISFET_OUT mode")
 
-    def measure(self, duration: float = 0.1) -> JoulescopeMeasurement:
+    def measure(
+        self, duration: float = 0.1, output: Literal["avg", "max", "min"] = "avg"
+    ) -> JoulescopeMeasurement:
         if self.joulescope is None:
             raise RuntimeError("Joulescope not connected. Call apply_config() first.")
 
         # Get current measurement
         data = self.joulescope.read(duration=duration, out_format="samples_get")
 
-        current = np.average(data["signals"]["current"]["value"])
-        voltage = np.average(data["signals"]["voltage"]["value"])
-        power = np.average(data["signals"]["power"]["value"])
+        if output == "avg":
+            current = np.average(data["signals"]["current"]["value"])
+            voltage = np.average(data["signals"]["voltage"]["value"])
+            power = np.average(data["signals"]["power"]["value"])
+        elif output == "max":
+            current = np.max(data["signals"]["current"]["value"])
+            voltage = np.max(data["signals"]["voltage"]["value"])
+            power = np.max(data["signals"]["power"]["value"])
+        elif output == "min":
+            current = np.min(data["signals"]["current"]["value"])
+            voltage = np.min(data["signals"]["voltage"]["value"])
+            power = np.min(data["signals"]["power"]["value"])
+        else:
+            raise ValueError(f"{output} is not a valid value for output")
 
         return JoulescopeMeasurement(
             current_a=current,
