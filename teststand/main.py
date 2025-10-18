@@ -4,7 +4,7 @@ OpenHTF test station for the Lura Health M2 sensor board
 
 import re
 import shlex
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 import openhtf as htf
 from openhtf.plugs import user_input
 from openhtf.output.callbacks import json_factory, console_summary
@@ -17,10 +17,9 @@ import logging
 from pathlib import Path
 import subprocess
 import serial
-import struct
 import asyncio
 from gpiozero import OutputDevice, InputDevice
-from bleak import BleakScanner, BleakClient, exc as bleak_exc
+from bleak import BleakScanner, BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from .power_path import (
     DUT_OFF_POWER_PATH,
@@ -29,7 +28,6 @@ from .power_path import (
     PowerPathConfig,
     VdutSelect,
     DevicePowerSupply,
-    ItenSelect,
 )
 from .joulescope_mux import (
     JoulescopeMux,

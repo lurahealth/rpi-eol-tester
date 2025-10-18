@@ -3,7 +3,6 @@ Assembly test for the Lura Health M2 sensor board subassembly
 Tests basic component functionality before full integration
 """
 
-import shlex
 from typing import Optional
 import openhtf as htf
 from openhtf.plugs import user_input
@@ -15,7 +14,6 @@ from openhtf.plugs.user_input import UserInput
 import time
 import logging
 from pathlib import Path
-import subprocess
 from .power_path import PowerPath, PowerPathConfig, VdutSelect, DevicePowerSupply
 from .joulescope_mux import (
     JoulescopeMux,

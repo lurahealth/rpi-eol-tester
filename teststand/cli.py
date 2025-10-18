@@ -19,8 +19,6 @@ from .joulescope_mux import (
 )
 import yaml
 import argparse
-import time
-from serial import Serial
 
 HARDWARE_CONFIG_FILE = Path(__file__).parent.parent / "hardware_config.yaml"
 
