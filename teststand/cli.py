@@ -129,7 +129,10 @@ def main():
             vdut_sel=VdutSelect[args.vdut_sel],
             device_power=DevicePowerSupply[args.input_sel],
             iten_sel=ItenSelect[args.iten_sel],
-            joulescope_current_meas=should_measure,
+            # Put the joulescope in the loop iff the measurement is of the DUT
+            joulescope_current_meas=(
+                args.meas == JoulescopeMuxSelect.DEVICE_UNDER_TEST.name
+            ),
             iten_current_meas=False,  # ITEN current measurement is not yet supported
         )
     )
