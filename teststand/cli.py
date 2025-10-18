@@ -19,6 +19,7 @@ from .joulescope_mux import (
     JoulescopeMuxSelect,
     JoulescopeMux,
 )
+from gpiozero import OutputDevice
 import yaml
 import argparse
 
@@ -55,21 +56,30 @@ def main():
         type=str,
         default=DevicePowerSupply.VDUT_VSYS.name,
         help="Input MUX selection. Options: "
-        + ", ".join([val.name for val in DevicePowerSupply]),
+        + ", ".join([val.name for val in DevicePowerSupply])
+        + f" Default: {DevicePowerSupply.VDUT_VSYS.name}",
     )
     mux_settings_group.add_argument(
         "--vdut_sel",
         type=str,
         default=VdutSelect.RASPBERRY_PI.name,
         help="vDUT MUX selection. Options: "
-        + ", ".join([val.name for val in VdutSelect]),
+        + ", ".join([val.name for val in VdutSelect])
+        + f" Default: {VdutSelect.RASPBERRY_PI.name}",
     )
     mux_settings_group.add_argument(
         "--iten_sel",
         type=str,
         default=ITEN_DEFAULT.name,
         help="ITEN MUX selection. Options: "
-        + ", ".join([val.name for val in ItenSelect]),
+        + ", ".join([val.name for val in ItenSelect])
+        + f" Default: {ITEN_DEFAULT.name}",
+    )
+    mux_settings_group.add_argument(
+        "--mosfet_en",
+        action="store_true",
+        default=False,
+        help="When present enable the onboard mosfet, default: False",
     )
     measurement_group = parser.add_argument_group("Joulescope Measurement Settings")
     measurement_group.add_argument(
@@ -89,7 +99,7 @@ def main():
         "--uart",
         action="store_true",
         default=False,
-        help="When set, reboot the DUT into UART mode after setting the muxes",
+        help="When present, reboot the DUT into UART mode after setting the muxes",
     )
     parser.add_argument(
         "--flash",
@@ -105,6 +115,13 @@ def main():
 
     joulescope_mux = JoulescopeMux(yaml_contents["power_pins"])
     power_path = PowerPath(yaml_contents["power_pins"])
+
+    # Mosfet enable pin, assign it to a variable to keep it around
+    print(args.mosfet_en)
+    mosfet_en_pin = OutputDevice(
+        yaml_contents["pin_mosfet_en"], initial_value=args.mosfet_en
+    )
+    assert mosfet_en_pin is not None
 
     should_measure = args.meas is not None
 
