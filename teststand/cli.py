@@ -117,7 +117,6 @@ def main():
     power_path = PowerPath(yaml_contents["power_pins"])
 
     # Mosfet enable pin, assign it to a variable to keep it around
-    print(args.mosfet_en)
     mosfet_en_pin = OutputDevice(
         yaml_contents["pin_mosfet_en"], initial_value=args.mosfet_en
     )
