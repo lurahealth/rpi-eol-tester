@@ -111,22 +111,20 @@ def main():
         )
     )
 
-    joulescope_mux.apply_config(
-        JoulescopeMeasurementConfig(
-            mux_select=JoulescopeMuxSelect[args.meas]
-            if should_measure
-            else JoulescopeMuxSelect.DEVICE_UNDER_TEST,
-            measure_current=True,
-            measure_voltage=True,
-        )
-    )
-
     if args.uart:
         dut_to_cli_mode(yaml_contents)
 
     if should_measure:
         print("Connecting to Joulescope...")
-        joulescope_mux.connect_joulescope()
+        joulescope_mux.apply_config(
+            JoulescopeMeasurementConfig(
+                mux_select=JoulescopeMuxSelect[args.meas]
+                if should_measure
+                else JoulescopeMuxSelect.DEVICE_UNDER_TEST,
+                measure_current=True,
+                measure_voltage=True,
+            )
+        )
         print(f"Beginning Joulescope measurements of {args.meas}")
 
     try:
